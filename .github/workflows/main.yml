@@ -14,6 +14,15 @@ on:
         required: true
         type: string
 
+      input_source:
+        description: "IPA source (use release to consume a private draft release asset)"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - release
+          - url
+
       bundle_id:
         description: "BundleID (Optional)"
         default: "com.google.ios.youtubemusic"
@@ -43,7 +52,20 @@ jobs:
         with:
           exclude_inputs: bundle_id,display_name
 
-      - name: Download and verify decrypted IPA
+      - name: Download IPA from private draft release
+        if: ${{ inputs.input_source == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download ytmu-input \
+            --repo "${{ github.repository }}" \
+            --pattern 'YouTubeMusic.ipa' \
+            --output ytm.ipa
+          echo "Downloaded IPA from draft release ytmu-input."
+
+      - name: Download IPA from URL
+        if: ${{ inputs.input_source == 'url' }}
         env:
           IPA_URL: ${{ inputs.ipa_url }}
         run: |
@@ -52,16 +74,18 @@ jobs:
             --connect-timeout 30 --max-time 1200 \
             --output ytm.ipa "$IPA_URL"
 
-          echo "Downloaded file type: $(file -b ytm.ipa)"
+      - name: Verify downloaded IPA
+        run: |
+          set -euo pipefail
           if ! unzip -tq ytm.ipa >/dev/null 2>&1; then
-            echo "::error::The download is not a valid IPA/ZIP archive. The source may have returned JSON, HTML, or an unfinished decryption job."
+            echo "::error::The download is not a valid IPA/ZIP archive."
             exit 1
           fi
           if ! unzip -Z1 ytm.ipa | grep -E '^Payload/[^/]+\.app/Info\.plist$' >/dev/null; then
-            echo "::error::The archive does not contain a normal Payload/*.app/Info.plist."
+            echo "::error::The archive does not contain Payload/*.app/Info.plist."
             exit 1
           fi
-          echo "Valid IPA archive structure detected. Note: this does not prove the app binary is decrypted or safe."
+          echo "IPA archive structure verified. This does not prove that the binary is safe or decrypted."
 
       - name: Install Dependencies
         run: brew install make ldid
