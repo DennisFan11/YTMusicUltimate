@@ -139,6 +139,8 @@ jobs:
         uses: softprops/action-gh-release@v2.5.0
         with:
           name: YTMusicUltimate (${{ github.run_number }})
+          tag_name: ytmu-build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           files: YTMusicUltimate.ipa
           draft: true
 
